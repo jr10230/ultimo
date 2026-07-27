@@ -263,6 +263,7 @@ goto :EOF
 
 :: ---------------------------------------------------------
 :: PurgeLocalDirectory - Delete all non-excluded files/folders in local directory
+:: Uses Robocopy mirror with exclusions for safe deletion
 :: Parameters: %1 = Destination dir to purge
 :: ---------------------------------------------------------
 :PurgeLocalDirectory
@@ -272,37 +273,32 @@ set "DST=%~1"
 
 call :Log INFO "Purge start: Deleting all non-excluded items in %DST%"
 
-:: Delete excluded files first (we want to keep these, so we don't delete them)
-:: Actually, we need to delete everything EXCEPT the excluded items
-:: So we iterate through all files and folders, and delete those not matching exclusion patterns
+:: Create a temporary empty source directory for mirror operation
+set "TEMP_SRC=%TEMP%\EmptySource_%RANDOM%"
+mkdir "%TEMP_SRC%" >nul 2>&1
 
-:: Step 1: Delete all files except excluded patterns
-for %%F in ("%DST%\*.*") do (
-    set "FILENAME=%%~nxF"
-    set "SKIP=0"
-    for %%E in (%SERVICE_EXCLUDE_FILES%) do (
-        if /I "%%F"==%%E set "SKIP=1"
-    )
-    if "!SKIP!"=="0" (
-        call :Log DEBUG "Deleting file: %%F"
-        del /q "%%F" >nul 2>&1
-    )
+:: Use Robocopy /MIR to mirror empty directory to destination
+:: This deletes everything in DST except excluded items
+:: /XD excludes directories, /XF excludes files
+robocopy "%TEMP_SRC%" "%DST%" ^
+    /MIR ^
+    /XD %SERVICE_EXCLUDE_DIRS% ^
+    /XF %SERVICE_EXCLUDE_FILES% ^
+    /R:0 /W:0 /NP ^
+    /NFL /NDL /NJH /NJS
+
+set "RC=%ERRORLEVEL%"
+call :CheckRobocopyResult %RC% "Purge"
+
+:: Clean up temporary directory
+rmdir /q "%TEMP_SRC%" >nul 2>&1
+
+if %RC% GEQ 8 (
+    call :Log ERROR "Purge failed with rc=%RC%"
+    endlocal & exit /b 1
 )
 
-:: Step 2: Delete all subdirectories except excluded ones
-for /D %%D in ("%DST%\*") do (
-    set "DIRNAME=%%~nxD"
-    set "SKIP=0"
-    for %%E in (%SERVICE_EXCLUDE_DIRS%) do (
-        if /I "%%D"==%%E set "SKIP=1"
-    )
-    if "!SKIP!"=="0" (
-        call :Log INFO "Deleting directory: %%D"
-        rmdir /s /q "%%D" >nul 2>&1
-    )
-)
-
-call :Log INFO "Purge completed: All non-excluded items deleted"
+call :Log INFO "Purge completed: All non-excluded items deleted safely"
 endlocal & goto :EOF
 
 :: ---------------------------------------------------------
