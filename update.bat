@@ -33,7 +33,7 @@ set "BACKUP_ROOT=D:\Backup\Service"
 set "LOG_ROOT=%~dp0Logs"
 
 :: --- Operational Flags ---
-set "ENABLE_PURGE=0"      :: Enable old backup cleanup
+set "ENABLE_PURGE=1"      :: Enable purge of non-excluded files after sync (全新更新模式)
 set "SAFE_MODE=1"         :: Enable safety checks
 set "DEBUG_MODE=0"        :: Enable debug output
 set "BACKUP_VERIFY=1"     :: Verify backup integrity
@@ -139,6 +139,15 @@ call :PerformBackup "%DST%" "%BACKUP_DIR%"
 if errorlevel 1 (
     set "EXIT_CODE=%EXIT_ERROR%"
     endlocal & goto FatalExit
+)
+
+:: --- Purge Phase: Delete all non-excluded files/folders before sync ---
+if "%ENABLE_PURGE%"=="1" (
+    call :PurgeLocalDirectory "%DST%"
+    if errorlevel 1 (
+        set "EXIT_CODE=%EXIT_ERROR%"
+        endlocal & goto FatalExit
+    )
 )
 
 :: --- Sync Phase ---
@@ -247,6 +256,87 @@ robocopy "%REMOTE_CONFIG_PATH%" "%LOCAL_PATH%" ^
 
 call :CheckRobocopyResult %ERRORLEVEL% "ConfigSync"
 goto :EOF
+
+:: ---------------------------------------------------------
+:: PurgeLocalDirectory - Delete all non-excluded files/folders in local directory
+:: Parameters: %1 = Destination dir to purge
+:: ---------------------------------------------------------
+:PurgeLocalDirectory
+setlocal
+
+set "DST=%~1"
+
+call :Log INFO "Purge start: Deleting all non-excluded items in %DST%"
+
+:: Delete excluded files first (we want to keep these, so we don't delete them)
+:: Actually, we need to delete everything EXCEPT the excluded items
+:: So we iterate through all files and folders, and delete those not matching exclusion patterns
+
+:: Step 1: Delete all files except excluded patterns
+for %%F in ("%DST%\*.*") do (
+    set "FILENAME=%%~nxF"
+    set "SKIP=0"
+    for %%E in (%SERVICE_EXCLUDE_FILES%) do (
+        if /I "%%F"==%%E set "SKIP=1"
+    )
+    if "!SKIP!"=="0" (
+        call :Log DEBUG "Deleting file: %%F"
+        del /q "%%F" >nul 2>&1
+    )
+)
+
+:: Step 2: Delete all subdirectories except excluded ones
+for /D %%D in ("%DST%\*") do (
+    set "DIRNAME=%%~nxD"
+    set "SKIP=0"
+    for %%E in (%SERVICE_EXCLUDE_DIRS%) do (
+        if /I "%%D"==%%E set "SKIP=1"
+    )
+    if "!SKIP!"=="0" (
+        call :Log INFO "Deleting directory: %%D"
+        rmdir /s /q "%%D" >nul 2>&1
+    )
+)
+
+call :Log INFO "Purge completed: All non-excluded items deleted"
+endlocal & goto :EOF
+
+:: ---------------------------------------------------------
+:: PurgeNonExcludedFiles - Remove files/folders not in source
+:: Parameters: %1 = Destination dir, %2 = Source dir
+:: ---------------------------------------------------------
+:PurgeNonExcludedFiles
+setlocal
+
+set "DST=%~1"
+set "SRC=%~2"
+
+call :Log INFO "Purge start: Removing non-excluded items not in source"
+
+:: Build exclusion pattern for robocopy /XF and /XD
+set "EXCLUDE_ARGS="
+for %%F in (%SERVICE_EXCLUDE_FILES%) do (
+    set "EXCLUDE_ARGS=!EXCLUDE_ARGS! /XF %%F"
+)
+for %%D in (%SERVICE_EXCLUDE_DIRS%) do (
+    set "EXCLUDE_ARGS=!EXCLUDE_ARGS! /XD %%D"
+)
+
+:: Use robocopy with /PURGE to remove destination files not in source
+:: But we need to exclude certain patterns from purging
+robocopy "%SRC%" "%DST%" ^
+    /E ^
+    /XD %SERVICE_EXCLUDE_DIRS% ^
+    /XF %SERVICE_EXCLUDE_FILES% ^
+    /PURGE ^
+    /R:0 /W:0 /NP ^
+    /NFL /NDL /NJH /NJS
+
+set "RC=%ERRORLEVEL%"
+call :CheckRobocopyResult %RC% "Purge"
+
+call :Log INFO "Purge completed"
+endlocal & goto :EOF
 
 :: ---------------------------------------------------------
 :: ValidateSafePath - Ensure path is safe to operate on
