@@ -1,59 +1,49 @@
 ```
-# Windows batch files
-*.bat
+# Logs and temp files
+*.log
+*.tmp
+*.swp
 
 # Environment
 .env
 .env.local
-.env.*
-
-# Logs and temp files
-*.log
-*.tmp
+*.env.*
 
 # Editors
 .vscode/
 .idea/
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
+# Dependencies
+node_modules/
 venv/
 .venv/
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.git/modules/
-.DS_Store
-Thumbs.db
-
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-
-# Build outputs
+__pycache__/
+.mypy_cache/
+.pytest_cache/
 dist/
 build/
 target/
-*.out
+.gradle/
+
+# Compiled files
+*.pyc
+*.class
+*.o
 *.exe
 *.dll
 *.so
-*.dylib
+*.a
+*.obj
+*.out
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
 
 # Compressed files
 *.zip
