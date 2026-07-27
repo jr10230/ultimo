@@ -19,6 +19,10 @@ set "REMOTE_HOST=192.168.1.243"
 set "REMOTE_SHARE=Sinovision"
 set "REMOTE_PATH=\\%REMOTE_HOST%\%REMOTE_SHARE%"
 
+:: --- Network Credentials (Hardcoded) ---
+set "REMOTE_USER=your_username"
+set "REMOTE_PASS=your_password"
+
 :: --- Remote Directory Structure ---
 set "REMOTE_SERVICE_DIR=Service"
 set "REMOTE_CONFIG_DIR=Config\PDD80"
@@ -459,21 +463,24 @@ if errorlevel 2 (
 exit /b 0
 
 :: ---------------------------------------------------------
-:: CollectCredentials - Get network credentials
-:: Returns: errorlevel 1 if validation fails
+:: CollectCredentials - Set network credentials (hardcoded)
+:: No user input required
 :: ---------------------------------------------------------
 :CollectCredentials
-set /p "NET_USER=Username: "
+set "NET_USER=%REMOTE_USER%"
+set "NET_PASS=%REMOTE_PASS%"
+
 if not defined NET_USER (
     call :Log ERROR "Empty username"
     exit /b 1
 )
 
-set /p "NET_PASS=Password: "
 if "%NET_PASS%"=="" (
     call :Log ERROR "Empty password"
     exit /b 1
 )
+
+call :Log INFO "Using hardcoded credentials for %NET_USER%"
 exit /b 0
 
 :: ---------------------------------------------------------
